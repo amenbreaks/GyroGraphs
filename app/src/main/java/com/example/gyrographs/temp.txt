@@ -1,0 +1,249 @@
+package com.example.gyrographs
+
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.gyrographs.ui.theme.GyroGraphsTheme
+import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            GyroGraphsTheme {
+                ProvideSensorManager {
+                    ProvideGyroDatabase {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
+                        ) {
+                            GyroGraphs()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+class GyroDatabaseHelper private constructor(context: Context) :
+    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+
+    companion object {
+        private const val DATABASE_NAME = "gyro_database"
+        private const val DATABASE_VERSION = 1
+
+        private const val TABLE_NAME = "sensor_data"
+        private const val COLUMN_ID = "id"
+        private const val COLUMN_X = "x"
+        private const val COLUMN_Y = "y"
+        private const val COLUMN_Z = "z"
+        private const val COLUMN_TIMESTAMP = "timestamp"
+
+        @Volatile
+        private var instance: GyroDatabaseHelper? = null
+
+        fun getInstance(context: Context): GyroDatabaseHelper {
+            return instance ?: synchronized(this) {
+                val newInstance = GyroDatabaseHelper(context.applicationContext)
+                instance = newInstance
+                newInstance
+            }
+        }
+    }
+
+    override fun onCreate(db: SQLiteDatabase) {
+        val createTableQuery = """
+            CREATE TABLE $TABLE_NAME (
+                $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COLUMN_X REAL,
+                $COLUMN_Y REAL,
+                $COLUMN_Z REAL,
+                $COLUMN_TIMESTAMP INTEGER
+            )
+        """.trimIndent()
+        db.execSQL(createTableQuery)
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+        onCreate(db)
+    }
+
+    fun insertSensorData(x: Float, y: Float, z: Float) {
+        val contentValues = ContentValues().apply {
+            put(COLUMN_X, x)
+            put(COLUMN_Y, y)
+            put(COLUMN_Z, z)
+            put(COLUMN_TIMESTAMP, System.currentTimeMillis())
+        }
+        writableDatabase.insert(TABLE_NAME, null, contentValues)
+    }
+
+    // Add other database operations as needed
+}
+
+
+val LocalSensorManager = staticCompositionLocalOf<SensorManager> { error("No SensorManager provided") }
+val LocalGyroDatabase = staticCompositionLocalOf<GyroDatabaseHelper> { error("No Database provided") }
+
+class GyroSensorListener(
+    private val onOrientationChange: (Float, Float, Float) -> Unit,
+    private val databaseHelper: GyroDatabaseHelper
+) : SensorEventListener {
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event != null && event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+            val (x, y, z) = event.values
+            onOrientationChange(x, y, z)
+            saveToDatabase(x, y, z)
+        }
+    }
+
+    private fun saveToDatabase(x: Float, y: Float, z: Float) {
+        databaseHelper.insertSensorData(x, y, z)
+    }
+}
+
+@Composable
+fun GyroGraphs() {
+    var xOrientation by remember { mutableStateOf(0f) }
+    var yOrientation by remember { mutableStateOf(0f) }
+    var zOrientation by remember { mutableStateOf(0f) }
+    var sensorInterval by remember { mutableStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
+
+    val sensorManager = LocalSensorManager.current
+    val databaseHelper = LocalGyroDatabase.current
+    val sensorListener = remember {
+        GyroSensorListener({ x, y, z ->
+            xOrientation = x
+            yOrientation = y
+            zOrientation = z
+        }, databaseHelper)
+    }
+
+    DisposableEffect(sensorManager) {
+        sensorManager.registerListener(
+            sensorListener,
+            sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+            sensorInterval
+        )
+        onDispose { sensorManager.unregisterListener(sensorListener) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "GyroGraphs",
+            style = TextStyle(
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            textAlign = TextAlign.Center
+        )
+        Text(text = "X Axis: ${xOrientation}°")
+        Text(text = "Y Axis: ${yOrientation}°")
+        Text(text = "Z Axis: ${zOrientation}°")
+        SensorIntervalButtons(onIntervalChange = { newInterval ->
+            sensorInterval = newInterval
+            sensorManager.unregisterListener(sensorListener)
+            sensorManager.registerListener(
+                sensorListener,
+                sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                sensorInterval
+            )
+        })
+        Text(
+            text = "Current Sensor Interval: ${getIntervalName(sensorInterval)}",
+            modifier = Modifier.padding(top = 16.dp)
+        )
+    }
+}
+
+fun getIntervalName(interval: Int): String {
+    return when (interval) {
+        SensorManager.SENSOR_DELAY_NORMAL -> "Normal Interval"
+        SensorManager.SENSOR_DELAY_UI -> "UI Interval"
+        SensorManager.SENSOR_DELAY_GAME -> "Game Interval"
+        else -> "Unknown"
+    }
+}
+
+@Composable
+fun ProvideSensorManager(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    CompositionLocalProvider(
+        LocalSensorManager provides sensorManager
+    ) { content() }
+}
+
+@Composable
+fun ProvideGyroDatabase(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val databaseHelper = GyroDatabaseHelper.getInstance(context)
+    CompositionLocalProvider(
+        LocalGyroDatabase provides databaseHelper
+    ) { content() }
+}
+
+@Composable
+fun SensorIntervalButtons(onIntervalChange: (Int) -> Unit) {
+    Column(
+        modifier = Modifier.padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Button(
+            onClick = { onIntervalChange(SensorManager.SENSOR_DELAY_NORMAL) },
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
+            Text("Normal Interval")
+        }
+        Button(
+            onClick = { onIntervalChange(SensorManager.SENSOR_DELAY_UI) },
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
+            Text("UI Interval")
+        }
+        Button(
+            onClick = { onIntervalChange(SensorManager.SENSOR_DELAY_GAME) },
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
+            Text("Game Interval")
+        }
+    }
+}

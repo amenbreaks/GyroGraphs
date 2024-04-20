@@ -38,15 +38,15 @@ class GyroDatabaseHelper private constructor(context: Context) :
                 $COLUMN_X REAL,
                 $COLUMN_Y REAL,
                 $COLUMN_Z REAL,
-                $COLUMN_TIMESTAMP INTEGER
+                $COLUMN_TIMESTAMP LONG
             )
         """.trimIndent()
         db.execSQL(createTableQuery)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-//        db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
-//        onCreate(db)
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+        onCreate(db)
     }
 
     fun insertSensorData(x: Float, y: Float, z: Float) {
@@ -59,5 +59,28 @@ class GyroDatabaseHelper private constructor(context: Context) :
         writableDatabase.insert(TABLE_NAME, null, contentValues)
     }
 
-    // Add other database operations as needed
+    // Add a method to retrieve orientation data
+    fun getAllOrientationData(): List<OrientationData> {
+        val orientationDataList = mutableListOf<OrientationData>()
+        val cursor = readableDatabase.rawQuery("SELECT * FROM $TABLE_NAME", null)
+        cursor.use {
+            while (cursor.moveToNext()) {
+                val x = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_X))
+                val y = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_Y))
+                val z = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_Z))
+                val timestamp = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_TIMESTAMP))
+                val orientationData = OrientationData(x, y, z, timestamp)
+                orientationDataList.add(orientationData)
+            }
+        }
+        return orientationDataList
+    }
+
 }
+
+data class OrientationData(
+    val x: Float,
+    val y: Float,
+    val z: Float,
+    val timestamp: Long
+)

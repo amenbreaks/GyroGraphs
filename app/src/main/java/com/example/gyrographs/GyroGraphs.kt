@@ -1,5 +1,6 @@
 package com.example.gyrographs
 
+import android.content.Intent
 import android.hardware.Sensor
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
@@ -77,6 +78,20 @@ fun GyroGraphs() {
             text = "Current Sensor Interval: ${getIntervalName(sensorInterval)}",
             modifier = Modifier.padding(top = 16.dp)
         )
+
+        Spacer(modifier = Modifier.height(64.dp))
+
+        val context = LocalContext.current
+
+        Button(
+            onClick = {
+                val intent = Intent(context, OrientationHistoryActivity::class.java)
+                context.startActivity(intent)
+            },
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
+            Text("View Orientation History")
+        }
     }
 }
 

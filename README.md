@@ -1,4 +1,4 @@
-# Sensor Data Analysis App
+# GyroGraphs App - Mobile Computing Submission
 
 This application is designed to analyze sensor data collected from a mobile device and provide predictions using the ARIMA (AutoRegressive Integrated Moving Average) model. It includes components for data preprocessing, model training, and visualization of predictions.
 

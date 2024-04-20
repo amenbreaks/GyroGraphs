@@ -37,7 +37,6 @@ class OrientationHistoryActivity : ComponentActivity() {
             ProvideGyroDatabase {
                 GyroGraphsTheme {
                     Surface(color = Color.White) {
-                        // Call a composable function to display the orientation history
                         OrientationHistoryScreen()
                     }
                 }
@@ -50,7 +49,6 @@ class OrientationHistoryActivity : ComponentActivity() {
 fun OrientationHistoryScreen() {
     val orientationDataList = LocalGyroDatabase.current.getAllOrientationData()
 
-    // Separate x, y, z data and time values
     val xEntries = mutableListOf<Entry>()
     val yEntries = mutableListOf<Entry>()
     val zEntries = mutableListOf<Entry>()
@@ -103,7 +101,7 @@ fun ComposeChart(entries: List<Entry>, timeValues: List<Float>) {
 
     Box(
         modifier = Modifier
-            .size(400.dp, 400.dp) // Set desired size here
+            .size(400.dp, 400.dp)
     ) {
         AndroidView(
             factory = { chart },

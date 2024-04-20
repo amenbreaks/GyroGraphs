@@ -12,7 +12,7 @@ class GyroDatabaseHelper private constructor(context: Context) :
         private const val DATABASE_NAME = "gyro_database"
         private const val DATABASE_VERSION = 1
 
-        private const val TABLE_NAME = "sensor_data"
+        const val TABLE_NAME = "sensor_data"
         private const val COLUMN_ID = "id"
         private const val COLUMN_X = "x"
         private const val COLUMN_Y = "y"

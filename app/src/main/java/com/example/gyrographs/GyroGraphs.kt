@@ -1,11 +1,15 @@
 package com.example.gyrographs
 
+import android.content.Context
 import android.content.Intent
 import android.hardware.Sensor
+import android.hardware.SensorManager
+import android.os.Environment
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -14,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.hardware.SensorManager
-import androidx.compose.runtime.*
+import java.io.File
+import java.io.FileWriter
 
 @Composable
 fun GyroGraphs() {
@@ -41,7 +45,6 @@ fun GyroGraphs() {
             sensorInterval
         )
         onDispose { sensorManager.unregisterListener(sensorListener) }
-//        onDispose { }
     }
 
     Column(
@@ -92,6 +95,15 @@ fun GyroGraphs() {
         ) {
             Text("View Orientation History")
         }
+
+        Button(
+            onClick = {
+                exportDatabase(context, databaseHelper)
+            },
+            modifier = Modifier.padding(vertical = 4.dp)
+        ) {
+            Text("Export Database")
+        }
     }
 }
 
@@ -129,4 +141,17 @@ fun SensorIntervalButtons(onIntervalChange: (Int) -> Unit) {
             Text("Game Interval")
         }
     }
+}
+
+fun exportDatabase(context: Context, dbHelper: GyroDatabaseHelper) {
+    val orientationDataList = dbHelper.getAllOrientationData()
+    val downloadFolder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    val file = File(downloadFolder, "sensor_data.txt")
+    val fileWriter = FileWriter(file)
+    orientationDataList.forEach { orientationData ->
+        fileWriter.appendLine("${orientationData.x}, ${orientationData.y}, ${orientationData.z}, ${orientationData.timestamp}")
+    }
+    fileWriter.flush()
+    fileWriter.close()
+    Toast.makeText(context, "Database exported to ${file.absolutePath}", Toast.LENGTH_SHORT).show()
 }
